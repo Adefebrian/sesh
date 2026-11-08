@@ -66,12 +66,13 @@ body{width:1080px;height:1920px;background:var(--ink);color:#fff;font-family:"Ra
 .chart{display:flex;flex-direction:column;gap:16px}
 .row{display:flex;justify-content:space-between;font-size:20px;letter-spacing:2px;color:var(--mute)}
 .row em{font-style:normal;color:var(--y)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(3,auto);justify-content:space-between;column-gap:32px;border-top:1px solid var(--line)}
+.rule{grid-column:1/-1;height:1px;background:var(--line);margin-top:44px}
 .cell{padding-top:28px;display:flex;flex-direction:column;gap:6px}
 .v{font-size:84px;font-weight:600;line-height:1}
 .v small{font-size:32px;color:var(--mute);margin-left:4px}
 .hl .v{color:var(--y)}
-.mini .v{font-size:52px}
+.cell.mini .v{font-size:52px}
 .foot{display:flex;justify-content:space-between;align-items:baseline;font-size:20px;letter-spacing:2px;color:var(--mute);border-top:1px solid var(--line);padding-top:28px;margin-top:-24px}
 .logo{font-size:30px;color:var(--y);font-weight:500}
 </style></head><body>
@@ -97,11 +98,10 @@ body{width:1080px;height:1920px;background:var(--ink);color:#fff;font-family:"Ra
      ${photo ? `<div class="cell hl"><div class="k mono">TOKENS</div><div class="v">${tokV}<small>${tokU}</small>` : `<div class="cell"><div class="k mono">ELAPSED</div><div class="v">${clock(s.elapsedMs)}<small>H</small>`}</div></div>
      <div class="cell"><div class="k mono">MOVING</div><div class="v">${clock(s.movingMs)}<small>H</small></div></div>
      <div class="cell"><div class="k mono">OUTPUT</div><div class="v">${outV}<small>${outU}</small></div></div>
-    </div>
-    <div class="stats mini" style="margin-top:44px">
-     <div class="cell"><div class="k mono">PROMPTS</div><div class="v">${s.prompts}</div></div>
-     <div class="cell"><div class="k mono">TOOL CALLS</div><div class="v">${s.toolCalls}</div></div>
-     <div class="cell"><div class="k mono">API EQUIV</div><div class="v">${money(s)}</div></div>
+     <div class="rule"></div>
+     <div class="cell mini"><div class="k mono">PROMPTS</div><div class="v">${s.prompts}</div></div>
+     <div class="cell mini"><div class="k mono">TOOL CALLS</div><div class="v">${s.toolCalls}</div></div>
+     <div class="cell mini"><div class="k mono">API EQUIV</div><div class="v">${money(s)}</div></div>
     </div>
    </div>
    <div class="foot mono"><span class="logo">SESH_</span><span>${esc(s.model.toUpperCase())}</span></div>

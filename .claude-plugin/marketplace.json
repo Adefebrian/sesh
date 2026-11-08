@@ -6,7 +6,7 @@
       "name": "sesh",
       "source": "./",
       "description": "Share one coding-agent session as a story card.",
-      "version": "0.3.1"
+      "version": "0.3.2"
     }
   ]
 }
