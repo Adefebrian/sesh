@@ -1,0 +1,11 @@
+{
+  "name": "sesh-card",
+  "version": "0.1.0",
+  "description": "Share one Claude Code or Codex session as a 1080x1920 story card.",
+  "type": "module",
+  "bin": { "sesh": "bin/sesh.mjs" },
+  "files": ["bin", "skills"],
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "repository": "github:Adefebrian/sesh"
+}
