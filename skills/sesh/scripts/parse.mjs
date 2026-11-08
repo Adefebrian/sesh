@@ -69,120 +69,180 @@ export function findClaudeSession({ id, cwd }) {
   return newest(safeList(claudeProjectDir(cwd)).filter((f) => f.endsWith(".jsonl")).map((f) => join(claudeProjectDir(cwd), f)));
 }
 
+
+function newAcc() {
+  return { stamps: [], events: [], tools: {}, files: new Set(), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0, seen: new Set() };
+}
+
+// Usage, tool calls and activity from one Claude transcript (main or subagent).
+function scanClaudeWork(rows, acc) {
+  const seen = acc.seen; // shared, so a response copied into two files counts once
+  for (const r of rows) {
+    if (r.timestamp && (r.type === "user" || r.type === "assistant")) acc.stamps.push(+new Date(r.timestamp));
+    if (r.type !== "assistant" || !r.message) continue;
+    const m = r.message;
+    for (const b of m.content ?? []) {
+      if (b.type !== "tool_use") continue;
+      acc.tools[b.name] = (acc.tools[b.name] ?? 0) + 1;
+      if (b.input?.file_path && /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(b.name)) acc.files.add(b.input.file_path);
+    }
+    // One API response is written as several lines that repeat the same usage.
+    const key = m.id ?? r.requestId ?? r.uuid;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const u = m.usage ?? {};
+    const i = u.input_tokens ?? 0, o = u.output_tokens ?? 0, cr = u.cache_read_input_tokens ?? 0, cw = u.cache_creation_input_tokens ?? 0;
+    acc.input += i; acc.output += o; acc.cacheRead += cr; acc.cacheWrite += cw;
+    if (r.timestamp) acc.events.push([+new Date(r.timestamp), i + o + cr + cw]);
+  }
+}
+
 export function parseClaude(file) {
   const rows = readJsonl(file);
-  const stamps = [];
-  const events = [];
-  const seen = new Set();
-  const tools = {};
-  let inp = 0, out = 0, cr = 0, cw = 0, prompts = 0, model = "", title = "", firstPrompt = "", cwd = "", branch = "";
-  const files = new Set();
+  const acc = newAcc();
+  let prompts = 0, model = "", title = "", firstPrompt = "", cwd = "", branch = "";
 
   for (const r of rows) {
-    if (r.timestamp) stamps.push(+new Date(r.timestamp));
     if (r.type === "custom-title" && r.customTitle) title = r.customTitle;
     if (r.type === "summary" && r.summary && !title) title = r.summary;
     cwd ||= r.cwd || "";
     branch ||= r.gitBranch || "";
-
+    if (r.type === "assistant" && r.message?.model && r.message.model !== "<synthetic>") model = r.message.model;
     if (r.type === "user" && !r.isMeta && !r.isSidechain) {
       const c = r.message?.content;
       const text = typeof c === "string" ? c : Array.isArray(c) ? c.filter((b) => b.type === "text").map((b) => b.text).join("\n") : "";
       const isToolResult = Array.isArray(c) && c.some((b) => b.type === "tool_result");
       if (!isToolResult && isHumanText(text)) { prompts++; firstPrompt ||= text; }
+      // A slash command you typed is a prompt too, except /sesh itself.
+      const cmd = text.match(/<command-name>\/?([^<\s]+)<\/command-name>/);
+      if (!isToolResult && cmd && !/^(sesh(:sesh)?)$/.test(cmd[1])) prompts++;
     }
+  }
+  scanClaudeWork(rows, acc);
 
-    if (r.type === "assistant" && r.message) {
-      const m = r.message;
-      if (m.model && m.model !== "<synthetic>") model = m.model;
-      for (const b of m.content ?? []) {
-        if (b.type !== "tool_use") continue;
-        tools[b.name] = (tools[b.name] ?? 0) + 1;
-        if (b.input?.file_path && /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(b.name)) files.add(b.input.file_path);
-      }
-      // One API response is split over several lines that repeat the same usage.
-      const key = m.id ?? r.requestId ?? r.uuid;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const u = m.usage ?? {};
-      inp += u.input_tokens ?? 0;
-      out += u.output_tokens ?? 0;
-      cr += u.cache_read_input_tokens ?? 0;
-      cw += u.cache_creation_input_tokens ?? 0;
-      if (r.timestamp) events.push([+new Date(r.timestamp), (u.input_tokens ?? 0) + (u.output_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)]);
-    }
+  // Subagents of this session live in <session-id>/subagents/*.jsonl.
+  // Their work belongs to this session; their prompts are written by the agent, not you.
+  const subDir = join(file.replace(/\.jsonl$/, ""), "subagents");
+  for (const f of safeList(subDir)) {
+    if (!f.endsWith(".jsonl")) continue;
+    scanClaudeWork(readJsonl(join(subDir, f)), acc);
+    acc.subagents++;
   }
 
   return finish({
     agent: "claude", id: basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
-    tokens: { input: inp, output: out, cacheRead: cr, cacheWrite: cw },
-    prompts, tools, filesTouched: files.size, stamps, events,
+    tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
+    prompts, tools: acc.tools, filesTouched: acc.files.size, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
   });
 }
 
 /* ---------------- Codex ---------------- */
 
-export function findCodexSession({ id, cwd }) {
+// session_meta of a rollout, read from the head of the file only.
+function codexMeta(file) {
+  try {
+    const head = readFileSync(file, "utf8").slice(0, 200000);
+    for (const line of head.split("\n")) {
+      if (!line.includes('"session_meta"')) continue;
+      const r = JSON.parse(line);
+      if (r.type === "session_meta") {
+        const p = r.payload ?? {};
+        const parent = p.source?.subagent?.thread_spawn?.parent_thread_id ?? null;
+        return { id: p.id, cwd: p.cwd, parent, subagent: p.thread_source === "subagent" || !!parent };
+      }
+    }
+  } catch { /* unreadable */ }
+  return null;
+}
+
+function codexIndex() {
   const root = join(homedir(), ".codex", "sessions");
-  const all = walk(root).filter((f) => f.endsWith(".jsonl"));
-  if (id) return all.find((f) => f.includes(id)) ?? null;
-  // newest rollout whose session_meta cwd matches the current directory
-  const sorted = all.map((f) => [f, statSync(f).mtimeMs]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
-  for (const f of sorted.slice(0, 200)) {
-    const head = readFileSync(f, "utf8").slice(0, 20000);
-    const m = head.match(/"cwd"\s*:\s*"([^"]+)"/);
-    if (m && m[1] === cwd) return f;
+  return walk(root)
+    .filter((f) => f.endsWith(".jsonl"))
+    .map((f) => ({ file: f, mtime: statSync(f).mtimeMs, ...(codexMeta(f) ?? {}) }))
+    .sort((a, b) => b.mtime - a.mtime);
+}
+
+export function findCodexSession({ id, cwd }) {
+  const all = codexIndex();
+  if (id) {
+    const hit = all.find((x) => x.id === id || x.file.includes(id));
+    if (!hit) return null;
+    // An id that points at a subagent resolves to the session that spawned it.
+    let cur = hit;
+    while (cur?.subagent && cur.parent) cur = all.find((x) => x.id === cur.parent) ?? null;
+    return cur?.file ?? hit.file;
   }
-  return sorted[0] ?? null;
+  // Newest top-level session started in this folder. Subagent threads are never picked.
+  return all.find((x) => !x.subagent && x.cwd === cwd)?.file ?? null;
+}
+
+function scanCodexWork(rows, acc) {
+  let last = null, prev = 0;
+  for (const r of rows) {
+    const p = r.payload ?? {};
+    if (r.timestamp && (r.type === "response_item" || r.type === "event_msg")) acc.stamps.push(+new Date(r.timestamp));
+    if (r.type === "response_item" && (p.type === "function_call" || p.type === "custom_tool_call" || p.type === "local_shell_call")) {
+      const n = p.name ?? p.type;
+      acc.tools[n] = (acc.tools[n] ?? 0) + 1;
+    }
+    if (r.type === "event_msg" && p.type === "token_count" && p.info?.total_token_usage) {
+      last = p.info.total_token_usage;
+      const total = last.total_tokens ?? 0;
+      if (r.timestamp && total > prev) acc.events.push([+new Date(r.timestamp), total - prev]);
+      prev = Math.max(prev, total);
+    }
+  }
+  // total_token_usage is cumulative per thread, so the last one is the thread total.
+  // Codex reports cached tokens inside input_tokens.
+  const cached = last?.cached_input_tokens ?? 0;
+  acc.input += Math.max(0, (last?.input_tokens ?? 0) - cached);
+  acc.cacheRead += cached;
+  acc.cacheWrite += last?.cache_write_input_tokens ?? 0;
+  acc.output += last?.output_tokens ?? 0;
 }
 
 export function parseCodex(file) {
   const rows = readJsonl(file);
-  const stamps = [];
-  const events = [];
-  const tools = {};
+  const acc = newAcc();
   let id = "", cwd = "", branch = "", model = "", prompts = 0, firstPrompt = "", title = "";
-  let last = null, prevTotal = 0;
 
   for (const r of rows) {
-    if (r.timestamp) stamps.push(+new Date(r.timestamp));
     const p = r.payload ?? {};
     if (r.type === "session_meta") { id ||= p.id; cwd ||= p.cwd; branch ||= p.git?.branch ?? ""; }
     if (r.type === "turn_context") { model = p.model || model; cwd ||= p.cwd; }
     if (r.type === "event_msg" && p.type === "user_message" && isHumanText(p.message)) { prompts++; firstPrompt ||= p.message; }
     if (r.type === "event_msg" && p.type === "thread_name_updated" && p.thread_name) title = p.thread_name;
-    if (r.type === "response_item" && (p.type === "function_call" || p.type === "custom_tool_call" || p.type === "local_shell_call")) {
-      const n = p.name ?? p.type;
-      tools[n] = (tools[n] ?? 0) + 1;
-    }
-    if (r.type === "event_msg" && p.type === "token_count" && p.info?.total_token_usage) {
-      last = p.info.total_token_usage;
-      const total = last.total_tokens ?? 0;
-      if (r.timestamp && total > prevTotal) events.push([+new Date(r.timestamp), total - prevTotal]);
-      prevTotal = Math.max(prevTotal, total);
-    }
   }
-  // Older rollouts without user_message events: count real user messages instead.
+  // Some Codex builds write no user_message events: count the real user messages instead.
   if (!prompts) {
     for (const r of rows) {
       const p = r.payload ?? {};
-      if (r.type === "response_item" && p.type === "message" && p.role === "user") {
-        const text = (p.content ?? []).map((c) => c.text ?? "").join("\n");
-        if (isHumanText(text)) { prompts++; firstPrompt ||= text; }
-      }
+      if (r.type !== "response_item" || p.type !== "message" || p.role !== "user") continue;
+      const text = (p.content ?? []).map((c) => c.text ?? "").join("\n");
+      if (isHumanText(text)) { prompts++; firstPrompt ||= text; }
+    }
+  }
+  scanCodexWork(rows, acc);
+
+  // Roll up every subagent thread spawned from this session, at any depth.
+  const all = codexIndex();
+  const queue = [id];
+  const done = new Set(queue);
+  while (queue.length) {
+    const parent = queue.shift();
+    for (const child of all.filter((x) => x.subagent && x.parent === parent && !done.has(x.id))) {
+      done.add(child.id);
+      queue.push(child.id);
+      scanCodexWork(readJsonl(child.file), acc);
+      acc.subagents++;
     }
   }
 
-  const cached = last?.cached_input_tokens ?? 0;
   return finish({
     agent: "codex", id: id || basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
-    tokens: {
-      input: Math.max(0, (last?.input_tokens ?? 0) - cached),
-      output: last?.output_tokens ?? 0,
-      cacheRead: cached,
-      cacheWrite: last?.cache_write_input_tokens ?? 0,
-    },
-    prompts, tools, filesTouched: null, stamps, events,
+    tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
+    prompts, tools: acc.tools, filesTouched: null, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
   });
 }
 
@@ -212,6 +272,7 @@ function finish(s) {
     toolCalls: Object.values(s.tools).reduce((a, b) => a + b, 0),
     tools: Object.entries(s.tools).sort((a, b) => b[1] - a[1]),
     filesTouched: s.filesTouched,
+    subagents: s.subagents ?? 0,
   };
 }
 

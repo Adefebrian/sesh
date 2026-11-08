@@ -40,6 +40,7 @@ function detectAgent() {
 
 function load(o) {
   const cwd = resolve(o.cwd ?? process.cwd());
+  if (o.session !== undefined && !String(o.session).trim() || /^\$\{.*\}$/.test(o.session ?? "")) delete o.session; // unexpanded placeholder
   const asPath = o.session && o.session.endsWith(".jsonl") && existsSync(o.session) ? resolve(o.session) : null;
   let agent = o.agent ?? (asPath ? (asPath.includes(`${join(".codex", "sessions")}`) ? "codex" : "claude") : detectAgent());
   const id = asPath ? null : (o.session ?? (agent === "claude" ? process.env.CLAUDE_SESSION_ID : process.env.CODEX_THREAD_ID));

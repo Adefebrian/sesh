@@ -7,7 +7,7 @@ allowed-tools: Bash(node:*)
 Run:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/sesh/scripts/sesh.mjs" --agent claude $ARGUMENTS
+node "${CLAUDE_PLUGIN_ROOT}/skills/sesh/scripts/sesh.mjs" --agent claude --session "${CLAUDE_SESSION_ID}" $ARGUMENTS
 ```
 
 Then report the summary line and the PNG path from the `card` line. Do not add numbers that the command did not print. If it reports no browser, tell the user to install Chrome, Chromium or Edge, or set `SESH_BROWSER`.

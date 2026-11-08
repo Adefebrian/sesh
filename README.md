@@ -91,17 +91,23 @@ What lands on the card and where it comes from.
 
 | Field | Meaning | Claude Code source | Codex source |
 |---|---|---|---|
-| **Tokens** | input + output + cache read + cache write | `message.usage`, counted once per API response | last `token_count.total_token_usage` |
+| **Tokens** | input + output + cache read + cache write, subagents included | `message.usage`, once per API response, plus `<session>/subagents/*.jsonl` | last `token_count.total_token_usage` of the session and every subagent thread it spawned |
 | **Moving** | active time; gaps over 5 min count as idle | line timestamps | line timestamps |
 | **Elapsed** | first to last event (plain card only) | line timestamps | line timestamps |
 | **Output** | tokens the model wrote | `usage.output_tokens` | `output_tokens` |
-| **Prompts** | messages you typed | `user` lines, excluding tool results and system text | `user_message` events |
-| **Tool calls** | every tool invocation | `tool_use` blocks | `function_call` items |
+| **Prompts** | messages you typed, slash commands included, `/sesh` excluded | main transcript only; subagent instructions are not counted | `user_message` events, else real user messages |
+| **Tool calls** | every tool invocation, subagents included | `tool_use` blocks | `function_call` items |
 | **Cache hit** | share of prompt tokens served from cache | cache read ÷ (input + cache read + cache write) | cached ÷ input |
 | **Chart** | tokens per bucket over moving time, peak in yellow | per response | per `token_count` delta |
 | **Title** | session title, else your first prompt | `custom-title` / `summary` | thread name / first prompt |
 
 Transcripts are read from `~/.claude/projects/` and `~/.codex/sessions/`.
+
+### Which session
+
+- **Claude Code:** `/sesh` passes the id of the session you are in, so a second session running in the same folder is never picked by mistake.
+- **Codex:** the newest top-level session started in the current folder. Subagent threads are never picked on their own; their work is rolled into the session that spawned them.
+- **Anywhere:** `--session <id|path>` picks one explicitly.
 
 ## `> ANATOMY`
 
