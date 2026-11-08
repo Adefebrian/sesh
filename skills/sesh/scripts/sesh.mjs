@@ -13,7 +13,9 @@ Usage: sesh [options]
 
   --agent <claude|codex>   which transcript to read (default: auto-detect)
   --session <id|path>      session id or .jsonl path (default: current or latest in this folder)
-  --photo <path>           background photo (jpg, png, webp)
+  --photo <path>           background photo (jpg, png, webp). Default: the image
+                           attached to the prompt that ran sesh, if any
+  --no-photo               ignore any attached image
   --out <path>             output .png (default: ~/sesh/<date>-<id>.png)
   --cwd <dir>              project folder to look up (default: current directory)
   --html                   also keep the .html next to the .png
@@ -27,6 +29,7 @@ function args(argv) {
     const a = argv[i];
     if (a === "-h" || a === "--help") o.help = true;
     else if (a === "--html" || a === "--json") o[a.slice(2)] = true;
+    else if (a === "--no-photo") o.noPhoto = true;
     else if (a.startsWith("--")) { o[a.slice(2)] = argv[++i]; }
   }
   return o;
@@ -104,9 +107,10 @@ function main() {
   if (o.help) { process.stdout.write(HELP); return; }
 
   const s = load(o);
-  if (o.json) { console.log(JSON.stringify(s, null, 2)); return; }
+  if (o.json) { console.log(JSON.stringify({ ...s, photo: s.photo ? "attached" : null }, null, 2)); return; }
 
-  const html = renderCard(s, { photo: o.photo ? photoUri(o.photo) : null });
+  const photo = o.noPhoto ? null : o.photo ? photoUri(o.photo) : s.photo;
+  const html = renderCard(s, { photo });
   const d = s.start;
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const out = resolve((o.out ?? join(homedir(), "sesh", `${stamp}-${s.id.slice(0, 8)}.png`)).replace(/^~(?=\/)/, homedir()));

@@ -17,7 +17,7 @@ node "<this skill folder>/scripts/sesh.mjs" --agent <claude|codex>
 
 - In Claude Code pass `--agent claude`. In Codex pass `--agent codex`.
 - With no `--session`, sesh picks the newest session recorded for the current folder, which is the one running now.
-- Add `--photo <path>` only when the user gives a photo. Without one, sesh renders the plain dark card.
+- An image the user attached to their latest message is used as the background automatically. Do not pass `--photo` unless the user gives a file path.
 - Pass through any other flags the user asks for: `--session <id|path>`, `--out <file.png>`, `--html`, `--json`.
 
 ## After it runs

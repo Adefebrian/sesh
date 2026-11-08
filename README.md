@@ -17,10 +17,10 @@
 ## `> BOOT`
 
 ```text
-$ /sesh --photo ~/desk.jpg
+> /sesh:sesh   [image attached]
 
 sesh  Claude session activity tracker
-      25.3M tokens · 0:32 moving · 14 prompts · 154 tool calls · $10.63 API equiv · claude-opus-5-5
+      29.3M tokens · 0:37 moving · 15 prompts · 171 tool calls · $11.73 API equiv · claude-opus-5-5
 card  ~/sesh/20261108-2d3959ca.png
 ```
 
@@ -66,24 +66,36 @@ If no browser is found, `sesh` saves the card as HTML and tells you. Point it at
 
 ## `> RUN`
 
-| Where | Command |
-|---|---|
-| Claude Code | `/sesh` |
-| Claude Code with photo | `/sesh --photo ~/Pictures/desk.jpg` |
-| Codex | ask: *"sesh this session"* |
-| Terminal | `sesh --agent claude` or `sesh --agent codex` |
+Type the command. Attach a photo if you want one. That is it.
 
-### Flags
+| Agent | Do this |
+|---|---|
+| Claude Code | type `/sesh:sesh`, optionally attach or paste an image in the same message |
+| Codex | ask *"sesh this session"*, optionally with an image attached |
+
+- **With an image:** it becomes the card background.
+- **Without one:** you get the plain dark card with the token count as the hero.
+- The PNG is saved to `~/sesh/` and shown in the chat.
+
+<details>
+<summary>Terminal and advanced flags</summary>
+
+```bash
+npx github:Adefebrian/sesh --agent claude
+```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--agent <claude\|codex>` | auto | Which transcript to read |
-| `--session <id\|path>` | current folder's latest | A session id or a `.jsonl` transcript path |
-| `--photo <path>` | none | Background photo: jpg, png or webp |
+| `--session <id\|path>` | current session | A session id or a `.jsonl` transcript path |
+| `--photo <path>` | attached image | Background photo file: jpg, png or webp |
+| `--no-photo` | off | Ignore an attached image |
 | `--out <file.png>` | `~/sesh/<date>-<id>.png` | Where to write the card |
 | `--cwd <dir>` | current directory | Project folder to look up |
 | `--html` | off | Keep the HTML next to the PNG |
 | `--json` | off | Print parsed stats as JSON and exit |
+
+</details>
 
 ## `> TELEMETRY`
 
@@ -135,6 +147,6 @@ The card shows the project folder name, git branch, session title and model. Che
 
 ## `> LICENSE`
 
-MIT © Ade Febrian. Sample background photo from [Unsplash](https://unsplash.com) (Unsplash License).
+MIT © Ade Febrian.
 
 <div align="center"><sub><code>SESH_</code> · end of transmission</sub></div>

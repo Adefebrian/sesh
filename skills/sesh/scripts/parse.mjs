@@ -104,6 +104,7 @@ export function parseClaude(file) {
   const rows = readJsonl(file);
   const acc = newAcc();
   let prompts = 0, model = "", title = "", firstPrompt = "", cwd = "", branch = "";
+  let photo = null; // image attached to your latest prompt, e.g. the one that ran /sesh
 
   for (const r of rows) {
     if (r.type === "custom-title" && r.customTitle) title = r.customTitle;
@@ -119,6 +120,14 @@ export function parseClaude(file) {
       // A slash command you typed is a prompt too, except /sesh itself.
       const cmd = text.match(/<command-name>\/?([^<\s]+)<\/command-name>/);
       if (!isToolResult && cmd && !/^(sesh(:sesh)?)$/.test(cmd[1])) prompts++;
+      const img = Array.isArray(c) ? c.filter((b) => b.type === "image" && b.source?.type === "base64").at(-1) : null;
+      if (!isToolResult && (isHumanText(text) || cmd || img)) photo = img ? `data:${img.source.media_type};base64,${img.source.data}` : null;
+    }
+    // With a slash command, Claude Code moves the attached image into the meta
+    // message that expands the command, right after the command line.
+    if (r.type === "user" && r.isMeta && !r.isSidechain && Array.isArray(r.message?.content)) {
+      const img = r.message.content.filter((b) => b.type === "image" && b.source?.type === "base64").at(-1);
+      if (img) photo = `data:${img.source.media_type};base64,${img.source.data}`;
     }
   }
   scanClaudeWork(rows, acc);
@@ -134,6 +143,7 @@ export function parseClaude(file) {
 
   return finish({
     agent: "claude", id: basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
+    photo,
     tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
     usd: acc.usd, unpricedTokens: acc.unpriced,
     prompts, tools: acc.tools, filesTouched: acc.files.size, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
@@ -217,6 +227,14 @@ export function parseCodex(file) {
   const rows = readJsonl(file);
   const acc = newAcc();
   let id = "", cwd = "", branch = "", model = "", prompts = 0, firstPrompt = "", title = "";
+  let photo = null;
+  for (const r of rows) {
+    const p = r.payload ?? {};
+    if (r.type !== "response_item" || p.type !== "message" || p.role !== "user") continue;
+    const text = (p.content ?? []).filter((c) => c.type === "input_text").map((c) => c.text ?? "").join("\n");
+    const img = (p.content ?? []).filter((c) => c.type === "input_image" && /^data:image\//.test(c.image_url ?? "")).at(-1);
+    if (isHumanText(text) || img) photo = img ? img.image_url : null;
+  }
 
   for (const r of rows) {
     const p = r.payload ?? {};
@@ -252,6 +270,7 @@ export function parseCodex(file) {
 
   return finish({
     agent: "codex", id: id || basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
+    photo,
     tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
     usd: acc.usd, unpricedTokens: acc.unpriced,
     prompts, tools: acc.tools, filesTouched: null, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
@@ -285,6 +304,7 @@ function finish(s) {
     tools: Object.entries(s.tools).sort((a, b) => b[1] - a[1]),
     filesTouched: s.filesTouched,
     subagents: s.subagents ?? 0,
+    photo: s.photo ?? null,
     usd: s.unpricedTokens > 0 && !s.usd ? null : s.usd,
     unpricedTokens: s.unpricedTokens ?? 0,
   };
