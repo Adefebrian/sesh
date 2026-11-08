@@ -3,6 +3,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
+import { claudeCost, openaiCost } from "./pricing.mjs";
 
 const IDLE_MS = 5 * 60 * 1000;   // gaps longer than this count as idle
 // chart resolution: pick a round bucket so the chart has roughly 24-36 bars
@@ -71,7 +72,7 @@ export function findClaudeSession({ id, cwd }) {
 
 
 function newAcc() {
-  return { stamps: [], events: [], tools: {}, files: new Set(), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0, seen: new Set() };
+  return { stamps: [], events: [], tools: {}, files: new Set(), input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0, seen: new Set(), usd: 0, unpriced: 0 };
 }
 
 // Usage, tool calls and activity from one Claude transcript (main or subagent).
@@ -93,6 +94,8 @@ function scanClaudeWork(rows, acc) {
     const u = m.usage ?? {};
     const i = u.input_tokens ?? 0, o = u.output_tokens ?? 0, cr = u.cache_read_input_tokens ?? 0, cw = u.cache_creation_input_tokens ?? 0;
     acc.input += i; acc.output += o; acc.cacheRead += cr; acc.cacheWrite += cw;
+    const usd = claudeCost(m.model, u);
+    if (usd == null) acc.unpriced += i + o + cr + cw; else acc.usd += usd;
     if (r.timestamp) acc.events.push([+new Date(r.timestamp), i + o + cr + cw]);
   }
 }
@@ -132,6 +135,7 @@ export function parseClaude(file) {
   return finish({
     agent: "claude", id: basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
     tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
+    usd: acc.usd, unpricedTokens: acc.unpriced,
     prompts, tools: acc.tools, filesTouched: acc.files.size, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
   });
 }
@@ -179,15 +183,22 @@ export function findCodexSession({ id, cwd }) {
 
 function scanCodexWork(rows, acc) {
   let last = null, prev = 0;
+  let model = "";
   for (const r of rows) {
     const p = r.payload ?? {};
     if (r.timestamp && (r.type === "response_item" || r.type === "event_msg")) acc.stamps.push(+new Date(r.timestamp));
+    if (r.type === "turn_context" && p.model) model = p.model;
     if (r.type === "response_item" && (p.type === "function_call" || p.type === "custom_tool_call" || p.type === "local_shell_call")) {
       const n = p.name ?? p.type;
       acc.tools[n] = (acc.tools[n] ?? 0) + 1;
     }
     if (r.type === "event_msg" && p.type === "token_count" && p.info?.total_token_usage) {
       last = p.info.total_token_usage;
+      if (p.info.last_token_usage) {
+        const u = p.info.last_token_usage;
+        const usd = openaiCost(model, u);
+        if (usd == null) acc.unpriced += (u.input_tokens ?? 0) + (u.output_tokens ?? 0); else acc.usd += usd;
+      }
       const total = last.total_tokens ?? 0;
       if (r.timestamp && total > prev) acc.events.push([+new Date(r.timestamp), total - prev]);
       prev = Math.max(prev, total);
@@ -242,6 +253,7 @@ export function parseCodex(file) {
   return finish({
     agent: "codex", id: id || basename(file, ".jsonl"), title, firstPrompt, cwd, branch, model,
     tokens: { input: acc.input, output: acc.output, cacheRead: acc.cacheRead, cacheWrite: acc.cacheWrite },
+    usd: acc.usd, unpricedTokens: acc.unpriced,
     prompts, tools: acc.tools, filesTouched: null, subagents: acc.subagents, stamps: acc.stamps, events: acc.events,
   });
 }
@@ -273,6 +285,8 @@ function finish(s) {
     tools: Object.entries(s.tools).sort((a, b) => b[1] - a[1]),
     filesTouched: s.filesTouched,
     subagents: s.subagents ?? 0,
+    usd: s.unpricedTokens > 0 && !s.usd ? null : s.usd,
+    unpricedTokens: s.unpricedTokens ?? 0,
   };
 }
 

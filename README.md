@@ -20,7 +20,7 @@
 $ /sesh --photo ~/desk.jpg
 
 sesh  Claude session activity tracker
-      10.1M tokens · 0:20 moving · 10 prompts · 82 tool calls · claude-opus-5-5
+      25.3M tokens · 0:32 moving · 14 prompts · 154 tool calls · $10.63 API equiv · claude-opus-5-5
 card  ~/sesh/20261108-2d3959ca.png
 ```
 
@@ -97,11 +97,15 @@ What lands on the card and where it comes from.
 | **Output** | tokens the model wrote | `usage.output_tokens` | `output_tokens` |
 | **Prompts** | messages you typed, slash commands included, `/sesh` excluded | main transcript only; subagent instructions are not counted | `user_message` events, else real user messages |
 | **Tool calls** | every tool invocation, subagents included | `tool_use` blocks | `function_call` items |
-| **Cache hit** | share of prompt tokens served from cache | cache read ÷ (input + cache read + cache write) | cached ÷ input |
+| **API equiv** | what the session would cost at standard API list prices; `—` when the model has no published price, `+` when only part of it does | each response priced on its own model: input, output, cache read, 5m and 1h cache writes, fast mode, Haiku 5.5 long-prompt tier | each request priced from `last_token_usage`: input, cached input, cache writes, output, long-context tier |
 | **Chart** | tokens per bucket over moving time, peak in yellow | per response | per `token_count` delta |
 | **Title** | session title, else your first prompt | `custom-title` / `summary` | thread name / first prompt |
 
 Transcripts are read from `~/.claude/projects/` and `~/.codex/sessions/`.
+
+### About API equiv
+
+Most people run Claude Code and Codex on a subscription, not pay-per-token. **API equiv** answers a different question: what this session would have cost at standard API list prices. Prices come from the official pricing pages, are stored in [`pricing.mjs`](skills/sesh/scripts/pricing.mjs) with the date they were checked, and exclude batch discounts, data residency uplifts and taxes. Models routed through a third-party provider or proxy are shown as `—` rather than guessed.
 
 ### Which session
 

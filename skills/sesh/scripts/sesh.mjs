@@ -5,7 +5,7 @@ import { join, resolve, extname } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { findClaudeSession, parseClaude, findCodexSession, parseCodex } from "./parse.mjs";
-import { renderCard, compact, clock } from "./card.mjs";
+import { renderCard, compact, clock, money } from "./card.mjs";
 
 const HELP = `sesh: share one coding-agent session as a story card
 
@@ -118,7 +118,7 @@ function main() {
 
   const [tv, tu] = compact(s.tokens.total);
   console.log(`sesh  ${s.title}`);
-  console.log(`      ${tv}${tu} tokens · ${clock(s.movingMs)} moving · ${s.prompts} prompts · ${s.toolCalls} tool calls · ${s.model}`);
+  console.log(`      ${tv}${tu} tokens · ${clock(s.movingMs)} moving · ${s.prompts} prompts · ${s.toolCalls} tool calls · ${money(s)} API equiv · ${s.model}`);
   if (ok) console.log(`card  ${out}`);
   else console.log(`card  no Chrome/Chromium/Edge found. HTML saved: ${htmlPath}\n      set SESH_BROWSER=/path/to/chrome to render PNG`);
 }

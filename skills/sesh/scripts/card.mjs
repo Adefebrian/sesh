@@ -11,6 +11,12 @@ export const clock = (ms) => {
   const m = Math.round(ms / 60000);
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
 };
+export function money(s) {
+  if (s.usd == null) return "—";
+  const v = s.usd;
+  const txt = v >= 1e4 ? `$${(v / 1e3).toFixed(0)}K` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : v >= 100 ? `$${Math.round(v)}` : `$${v.toFixed(2)}`;
+  return s.unpricedTokens > 0 ? txt + "+" : txt;
+}
 const two = (n) => String(n).padStart(2, "0");
 
 function chart(series, W = 920, H = 200) {
@@ -95,7 +101,7 @@ body{width:1080px;height:1920px;background:var(--ink);color:#fff;font-family:"Ra
     <div class="stats mini" style="margin-top:44px">
      <div class="cell"><div class="k mono">PROMPTS</div><div class="v">${s.prompts}</div></div>
      <div class="cell"><div class="k mono">TOOL CALLS</div><div class="v">${s.toolCalls}</div></div>
-     <div class="cell"><div class="k mono">CACHE HIT</div><div class="v">${Math.round(s.cacheHit * 100)}<small>%</small></div></div>
+     <div class="cell"><div class="k mono">API EQUIV</div><div class="v">${money(s)}</div></div>
     </div>
    </div>
    <div class="foot mono"><span class="logo">SESH_</span><span>${esc(s.model.toUpperCase())}</span></div>
