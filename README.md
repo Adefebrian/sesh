@@ -20,7 +20,7 @@
 > /sesh:sesh   [image attached]
 
 sesh  Claude session activity tracker
-      29.3M tokens · 0:37 moving · 15 prompts · 171 tool calls · $11.73 API equiv · claude-opus-5-5
+      33.1M tokens · 0:42 moving · 17 prompts · 185 tool calls · $12.74 API equiv · claude-opus-5-5
 card  ~/sesh/20261108-2d3959ca.png
 ```
 

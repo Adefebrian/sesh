@@ -1,6 +1,6 @@
 {
   "name": "sesh",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Share one coding-agent session as a story card: tokens, moving time, prompts, tool calls and a pace chart.",
   "author": { "name": "Ade Febrian", "url": "https://github.com/Adefebrian" },
   "homepage": "https://github.com/Adefebrian/sesh",

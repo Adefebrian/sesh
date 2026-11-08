@@ -48,9 +48,9 @@ export function renderCard(s, { photo } = {}) {
 *{margin:0;box-sizing:border-box}
 body{width:1080px;height:1920px;background:var(--ink);color:#fff;font-family:"Rajdhani",system-ui,sans-serif;overflow:hidden}
 .wrap{position:relative;width:1080px;height:1920px}
-.photo{position:absolute;inset:0;background:${photo ? `url("${photo}") center/cover` : "none"}}
-.shade{position:absolute;inset:0;background:${photo
-    ? "linear-gradient(180deg,rgba(8,8,10,.6) 0%,rgba(8,8,10,0) 14%,rgba(8,8,10,.35) 26%,rgba(8,8,10,.92) 42%,var(--ink) 64%)"
+.photo{position:absolute;left:0;right:0;top:0;height:1120px;background:${photo ? `url("${photo}") center 35%/cover` : "none"}}
+.shade{position:absolute;left:0;right:0;top:0;height:1120px;background:${photo
+    ? "linear-gradient(180deg,rgba(8,8,10,.55) 0%,rgba(8,8,10,0) 12%,rgba(8,8,10,0) 58%,rgba(8,8,10,.75) 82%,var(--ink) 100%)"
     : "none"}}
 .in{position:relative;height:100%;display:flex;flex-direction:column;padding:88px 80px}
 .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
