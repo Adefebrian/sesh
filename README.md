@@ -19,9 +19,9 @@
 ```text
 > /sesh:sesh   [image attached]
 
-sesh  Claude session activity tracker
-      33.1M tokens · 0:42 moving · 17 prompts · 185 tool calls · $12.74 API equiv · claude-opus-5-5
-card  ~/sesh/20261108-2d3959ca.png
+sesh  Portfolio redesign: modern minimalist
+      346M tokens · 5:17 moving · 40 prompts · 693 tool calls · $298 API equiv · claude-opus-5-5
+card  ~/sesh/20260706-284c5e74.png
 ```
 
 - **One session, not your lifetime total.** The card covers the session you are in, like a single run.
